@@ -169,7 +169,7 @@ function bocker2_init() {
 	mkdir -p "$bocker2_path/$uuid/workdir"
 	mkdir -p "$bocker2_path/$uuid/upper"
 
-	echo "$imagedir" > "$bocker2_path/$uuid/$uuid.base"
+	readlink -f "$imagedir" > "$bocker2_path/$uuid/$uuid.base"
 	echo "10.0.0.$ip" > "$bocker2_path/$uuid/ip.txt"
 	echo "02:42:ac:11:$mac" > "$bocker2_path/$uuid/mac.txt"
 }
