@@ -40,6 +40,31 @@ function bocker2_logs() { #HELP View logs from a container:\nBOCKER logs <contai
 	cat "$bocker2_path/$1/$1.log"
 }
 
+function bocker2_rename() {
+	currname="$1"
+	newname="$2"
+
+	currpath="$bocker2_path/$currname"
+	newpath="$bocker2_path/$newname"
+
+	if [[ ! -d "$currpath" ]];then
+		echo "Missing container '$currname'" >&2
+		exit 1
+	fi
+
+	if [[ -d "$newpath" ]];then
+		echo "$newname already exists" >&2
+		exit 2
+	fi
+
+	mv "$currpath" "$newpath"
+	mv "$newpath/${currname}.base" "$newpath/${newname}.base"
+	mv "$newpath/${currname}.cmd" "$newpath/${newname}.cmd"
+	mv "$newpath/${currname}.log" "$newpath/${newname}.log"
+		
+	echo "[+] Moved $currname to $newname"
+}
+
 function bocker2_import() {
 	archive="$(readlink -f $1)"
 	uuid="ps_$(shuf -i 42002-42254 -n 1)"
@@ -114,7 +139,7 @@ function bocker2_rm() {
 
 function bocker2_ps() {
 	echo -e "CONTAINER_ID\t\tCOMMAND"
-	for ps in "$bocker2_path"/ps_*; do
+	for ps in "$bocker2_path"/*; do
 		ps=$(basename "$ps")
 		echo -e "$ps\t\t$(cat "$bocker2_path/$ps/$ps.cmd")"
 	done
@@ -220,7 +245,7 @@ function bocker2_exec() { #HELP Execute a command in a running container:\nBOCKE
 function bocker2_images() {
 	echo -e "IMAGE_ID\t\tSOURCE"
 	cd $bocker2_path
-	for container in ps_*;do
+	for container in *;do
 		base=$(cat $container/${container}.base)
 		echo -e "$container\t\t$base"
 	done
@@ -235,7 +260,7 @@ function bocker2_help () {
 
 [[ -z "${1-}" ]] && bocker2_help "$0"
 case $1 in
-	check|du|pull|rm|images|ps|run|start|exec|export|import|logs|path|mount|umount) bocker2_"$1" "${@:2}" ;;
+	check|du|pull|rm|images|ps|run|start|exec|export|import|logs|path|mount|umount|rename) bocker2_"$1" "${@:2}" ;;
 	*) bocker2_help "$0" ;;
 esac
 
