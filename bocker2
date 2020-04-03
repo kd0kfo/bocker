@@ -156,6 +156,23 @@ function bocker2_umount() {
 	umount "$bocker2_path/$uuid/root"
 }
 
+function bocker2_network_up() {
+	ip l add bocker0 type bridge
+	ip a add 10.0.0.1/24 dev bocker0
+	ip l set bocker0 up
+}
+
+function bocker2_network_list() {
+	echo "Bridge: "
+	ip a show bocker0
+	echo ""
+	cd $bocker2_path
+	for container in * ;do
+		ip=$(cat "$container/ip.txt")
+		echo -e "$container\t\t$ip"
+	done
+}
+
 function bocker2_init() {
 	imagedir="$1"
 	uuid="$2"
@@ -209,7 +226,7 @@ function bocker2_start() {
 
 	ip link add dev veth0_"$uuid" type veth peer name veth1_"$uuid"
 	ip link set dev veth0_"$uuid" up
-	#ip link set veth0_"$uuid" master bridge0
+	ip link set veth0_"$uuid" master bocker0
 	ip netns add netns_"$uuid"
 	ip link set veth1_"$uuid" netns netns_"$uuid"
 	ip netns exec netns_"$uuid" ip link set dev lo up
@@ -237,7 +254,7 @@ function bocker2_start() {
 
 function bocker2_exec() { #HELP Execute a command in a running container:\nBOCKER exec <container_id> <command>
 	[[ "$(bocker2_check "$bocker2_path/$1")" == 1 ]] && echo "No container named '$1' exists" && exit 1
-	cid="$(ps o ppid,pid | grep "^$(ps o pid,cmd | grep -E "^\ *[0-9]+ unshare.*$1" | awk '{print $1}')" | awk '{print $2}')"
+	cid="$(ps -eo ppid,pid | grep "^\s*$(ps -eo pid,args | grep -E "^\ *[0-9]+ unshare.*$1" | awk '{print $1}')" | awk '{print $2}')"
 	[[ ! "$cid" =~ ^\ *[0-9]+$ ]] && echo "Container '$1' exists but is not running" && exit 1
 	nsenter -t "$cid" -m -u -i -n -p chroot "$bocker2_path/$1/root" "${@:2}"
 }
@@ -261,6 +278,12 @@ function bocker2_help () {
 [[ -z "${1-}" ]] && bocker2_help "$0"
 case $1 in
 	check|du|pull|rm|images|ps|run|start|exec|export|import|logs|path|mount|umount|rename) bocker2_"$1" "${@:2}" ;;
+	network)
+		case $2 in 
+			up|list) bocker2_network_"$2" "${@:3}" ;;
+			*) bocker2_help "$0" ;;
+		esac
+	;;
 	*) bocker2_help "$0" ;;
 esac
 
