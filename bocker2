@@ -35,7 +35,7 @@ function bocker2_du() {
 	echo Current Root Size: $(du -hs $bocker2_path/$1/root )
 }
 
-function bocker2_logs() { #HELP View logs from a container:\nBOCKER logs <container_id>
+function bocker2_logs() {
 	[[ "$(bocker2_check "$bocker2_path/$1")" == 1 ]] && echo "No container named '$1' exists" && exit 1
 	cat "$bocker2_path/$1/$1.log"
 }
@@ -297,7 +297,7 @@ function bocker2_start() {
 	umount $bocker2_path/$uuid/root
 }
 
-function bocker2_exec() { #HELP Execute a command in a running container:\nBOCKER exec <container_id> <command>
+function bocker2_exec() {
 	cid=$(get_top_pid "$1")
 	nsenter -t "$cid" -m -u -i -n -p chroot "$bocker2_path/$1/root" "${@:2}"
 }
