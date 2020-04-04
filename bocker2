@@ -173,6 +173,51 @@ function bocker2_network_list() {
 	done
 }
 
+function get_top_pid() {
+	uuid="$1"
+
+	if [[ -z "$uuid" ]];then
+		echo "Missing container id" >&2
+		echo ""
+		exit 1
+	fi
+	[[ "$(bocker2_check "$bocker2_path/$uuid")" == 1 ]] && echo "No container named '$uuid' exists" >&2 && echo "" && exit 1
+	cid="$(ps -eo ppid,pid | grep "^\s*$(ps -eo pid,args | grep -E "^\ *[0-9]+ unshare.*$uuid" | awk '{print $1}')" | awk '{print $2}')"
+	[[ ! "$cid" =~ ^\ *[0-9]+$ ]] && echo "Container '$uuid' exists but is not running" >&2 && echo "" && exit 1
+
+	echo $cid
+}	
+
+function bocker2_signal() {
+	uuid="$1"
+	signal="SIGTERM"
+
+	if [[ -z "$uuid" ]];then
+		echo "Missing container id" >&2
+		exit 1
+	fi
+
+	if [[ ! -z "$2" ]];then
+		signal="$2"
+	fi
+
+	top_pid=$(get_top_pid "$uuid")
+	if [[ -z "$top_pid" ]];then
+		echo "Error getting pid" >&2
+		echo $top_pid >&2
+		exit 2
+	fi
+
+	pid=$(grep PPid /proc/$top_pid/status | awk '{print $2}')
+	if [[ -z "$pid" ]];then
+		echo "Could not get unshare pid" >&2
+		exit 3
+	fi	
+
+	echo "Sending signal $signal to $pid"
+	kill "-$signal" "$pid"
+}
+
 function bocker2_init() {
 	imagedir="$1"
 	uuid="$2"
@@ -243,7 +288,7 @@ function bocker2_start() {
 	echo "$cmd" > "$bocker2_path/$uuid/$uuid.cmd"
 	#cgexec -g "$cgroups:$uuid" \
 	ip netns exec netns_"$uuid" \
-	unshare -fmuip --mount-proc \
+	unshare -fmuip --kill-child --mount-proc \
 	chroot "$bocker2_path/$uuid/root" \
 	/bin/sh -c "/bin/mount -t proc proc /proc && $cmd" \
 	2>&1 | tee "$bocker2_path/$uuid/$uuid.log" || true
@@ -253,9 +298,7 @@ function bocker2_start() {
 }
 
 function bocker2_exec() { #HELP Execute a command in a running container:\nBOCKER exec <container_id> <command>
-	[[ "$(bocker2_check "$bocker2_path/$1")" == 1 ]] && echo "No container named '$1' exists" && exit 1
-	cid="$(ps -eo ppid,pid | grep "^\s*$(ps -eo pid,args | grep -E "^\ *[0-9]+ unshare.*$1" | awk '{print $1}')" | awk '{print $2}')"
-	[[ ! "$cid" =~ ^\ *[0-9]+$ ]] && echo "Container '$1' exists but is not running" && exit 1
+	cid=$(get_top_pid "$1")
 	nsenter -t "$cid" -m -u -i -n -p chroot "$bocker2_path/$1/root" "${@:2}"
 }
 
@@ -277,7 +320,7 @@ function bocker2_help () {
 
 [[ -z "${1-}" ]] && bocker2_help "$0"
 case $1 in
-	check|du|pull|rm|images|ps|run|start|exec|export|import|logs|path|mount|umount|rename) bocker2_"$1" "${@:2}" ;;
+	check|du|pull|rm|images|ps|run|start|exec|signal|export|import|logs|path|mount|umount|rename) bocker2_"$1" "${@:2}" ;;
 	network)
 		case $2 in 
 			up|list) bocker2_network_"$2" "${@:3}" ;;
